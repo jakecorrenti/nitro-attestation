@@ -1,8 +1,8 @@
-use std::io::{Write, stdout};
-
 use curl::easy::{Easy, List};
 
 fn main() {
+    let mut put_response = Vec::new();
+
     let mut list = List::new();
     list.append("X-aws-ec2-metadata-token-ttl-seconds: 10")
         .unwrap();
@@ -12,10 +12,17 @@ fn main() {
     easy.http_headers(list).unwrap();
     easy.put(true).unwrap();
 
-    easy.write_function(|data| {
-        stdout().write_all(data).unwrap();
-        Ok(data.len())
-    })
-    .unwrap();
-    easy.perform().unwrap();
+    {
+        let mut transfer = easy.transfer();
+        transfer
+            .write_function(|buf| {
+                put_response.extend_from_slice(buf);
+                Ok(buf.len())
+            })
+            .unwrap();
+        transfer.perform().unwrap();
+    }
+
+    let token = String::from_utf8(put_response).unwrap();
+    println!("put_response: {:#?}", token);
 }
